@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
@@ -16,49 +17,65 @@ namespace ExcelMyPlugin
     {
         private void ThisAddIn_Startup(object sender, System.EventArgs e)
         {
-            this.Application.WorkbookBeforeSave += new Microsoft.Office.Interop.Excel.AppEvents_WorkbookBeforeSaveEventHandler(Application_WorkbookBeforeSave);
-            this.Application.WorkbookActivate += ApplicationOnWorkbookOpen;
+            //this.Application.WorkbookBeforeSave += new Microsoft.Office.Interop.Excel.AppEvents_WorkbookBeforeSaveEventHandler(Application_WorkbookBeforeSave);
+            //this.Application.WorkbookActivate += ApplicationOnWorkbookOpen;
+            this.Application.SheetSelectionChange += ApplicationOnSheetSelectionChange ;
+            this.Application.SheetChange += ApplicationOnSheetChange;
         }
 
-        private void ApplicationOnWorkbookOpen(object sh)
+        private void ApplicationOnSheetSelectionChange(object sh, Excel.Range target)
         {
-            Excel.Workbook activeWb = ((Excel.Workbook)Application.ActiveWorkbook);
-            Application_Workbook_SheetsActionReg(activeWb);
+            var currentSheet = (Excel.Worksheet)sh;
+            var sheetName = currentSheet.Name.ToString();
+            if (Utility.IsContainChinese(sheetName))
+            {
+                WidgetPresets.CloseInfoInTargetRange();
+            }
+            else
+            {
+                WidgetPresets.ShowInfoInTargetRange(target,"测试提示标题","测试提示123");
+            }
+            
+        }
+
+
+        private void ApplicationOnSheetChange(object sh, Excel.Range target)
+        {
+            bool shouldWraning = false;
+            bool shouldError = false;
+            var currentSheet = (Excel.Worksheet)sh;
+            var sheetName = currentSheet.Name.ToString();
+            if (Utility.IsContainChinese(sheetName))
+            {
+                return;
+            }
+            
+            foreach (Excel.Range cell in target.Cells)
+            {
+                var currentCellVar = cell.Value2.ToString();
+                if (!IsValueValidation(currentCellVar))
+                {
+                    //cell.Value2 = "不准涩涩!";
+                    shouldError = true;
+                }
+                else
+                    shouldWraning = true;
+            }
+
+            if (shouldError)
+            {
+                WidgetPresets.DisplayError("错误","123了");
+            }
+
+            if (shouldWraning)
+            {
+                WidgetPresets.DisplayWarning("警告","测试了");
+            }
         }
 
         protected override Microsoft.Office.Core.IRibbonExtensibility CreateRibbonExtensibilityObject()
         {
             return new RibbonTest();
-        }
-        
-        void Application_Workbook_SheetsActionReg(Excel.Workbook wb)
-        {
-            wb.NewSheet += WbOnNewSheet;
-            var activeWorkbook = wb;
-            var currentSheets = activeWorkbook.Worksheets;
-            foreach (Excel.Worksheet sheet in currentSheets)
-            {
-                sheet.Change -= SheetOnChange;
-                sheet.Change += SheetOnChange;
-            }
-        }
-
-        private void WbOnNewSheet(object sh)
-        {
-            Excel.Worksheet sheet = (Excel.Worksheet)sh;
-            sheet.Change += SheetOnChange;
-        }
-
-        private void SheetOnChange(Excel.Range target)
-        {
-            foreach (Excel.Range cell in target.Cells)
-            {
-                var currentCellVar = cell.Value2.ToString();
-                if (!IsValueValidation(currentCellVar))
-                    DisplayError();
-                else
-                    DisplayWarning();
-            }
         }
 
         private bool IsValueValidation(string str)
@@ -70,16 +87,6 @@ namespace ExcelMyPlugin
             return true;
         }
 
-        private void DisplayWarning()
-        {
-            MessageBox.Show("Warning", "给你一个提醒",MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        }
-
-        private void DisplayError()
-        {
-            MessageBox.Show("Error", "给你一个错误提示",MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-        
         private void ThisAddIn_Shutdown(object sender, System.EventArgs e)
         {
         }
